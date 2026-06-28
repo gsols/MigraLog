@@ -763,11 +763,11 @@ function LogView({ session, onSaved, setActiveTab }) {
       {message && <p className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-200">{message}</p>}
 
       <FormSection title="Date, Time, and Duration">
-        <div className="grid grid-cols-[1fr_0.48fr] gap-3">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,0.55fr)]">
           <label className="text-sm font-medium text-zinc-200">
             <span className="sr-only">Date & Time</span>
             <input
-              className="mt-2 w-full rounded-xl border border-zinc-800 bg-[#292929] px-4 py-4 text-2xl"
+              className="mt-2 min-w-0 w-full rounded-xl border border-zinc-800 bg-[#292929] px-4 py-4 text-xl sm:text-2xl"
               onChange={(event) => updateField('logged_at', `${event.target.value}T${form.logged_at.slice(11, 16)}`)}
               type="date"
               value={form.logged_at.slice(0, 10)}
@@ -776,7 +776,7 @@ function LogView({ session, onSaved, setActiveTab }) {
           <label className="text-sm font-medium text-zinc-200">
             <span className="sr-only">Time</span>
             <input
-              className="mt-2 w-full rounded-xl border border-zinc-800 bg-[#292929] px-4 py-4 text-2xl"
+              className="mt-2 min-w-0 w-full rounded-xl border border-zinc-800 bg-[#292929] px-4 py-4 text-xl sm:text-2xl"
               onChange={(event) => updateField('logged_at', `${form.logged_at.slice(0, 10)}T${event.target.value}`)}
               type="time"
               value={form.logged_at.slice(11, 16)}
@@ -1001,18 +1001,18 @@ function TrendsView({ logs, profile, setActiveTab }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <button className="shrink-0 rounded-full p-1 text-zinc-400" onClick={() => setActiveTab('Home')} type="button">
-          <ArrowLeft size={32} />
+          <ArrowLeft size={28} />
         </button>
-        <h1 className="min-w-0 flex-1 text-2xl font-bold leading-tight tracking-normal sm:text-[34px]">Nursing Insight Report</h1>
-        <div className="flex shrink-0 rounded-xl bg-[#2a2a2a] p-1">
+        <h1 className="min-w-0 flex-1 text-[22px] font-bold leading-tight tracking-normal sm:text-[34px]">Nursing Insight Report</h1>
+        <div className="flex shrink-0 rounded-lg bg-[#2a2a2a] p-0.5 sm:rounded-xl sm:p-1">
           {[7, 30].map((days) => {
             const selected = reportDays === days;
 
             return (
               <button
-                className={`rounded-lg px-3 py-2 text-base font-bold leading-tight sm:px-4 sm:text-lg ${
+                className={`rounded-md px-2.5 py-1.5 text-sm font-bold leading-tight sm:rounded-lg sm:px-4 sm:py-2 sm:text-lg ${
                   selected ? 'bg-[#06b843] text-white shadow-[inset_0_0_0_2px_rgba(255,255,255,0.08)]' : 'text-zinc-400'
                 }`}
                 key={days}
@@ -1026,11 +1026,11 @@ function TrendsView({ logs, profile, setActiveTab }) {
           })}
         </div>
         <button
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#06b843] px-4 py-3 text-base font-bold leading-tight text-white hover:bg-emerald-500 sm:text-lg"
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#06b843] px-3 py-2 text-sm font-bold leading-tight text-white hover:bg-emerald-500 sm:gap-2 sm:rounded-2xl sm:px-4 sm:py-3 sm:text-lg"
           onClick={exportReport}
           type="button"
         >
-          <Printer size={18} />
+          <Printer size={16} />
           <span>Export<span className="block">PDF</span></span>
         </button>
       </div>
@@ -1129,7 +1129,7 @@ function HelpView() {
           ))}
         </ul>
         <a
-          className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-red-500 px-5 py-4 text-xl font-bold text-white hover:bg-red-400"
+          className="mx-auto mt-6 inline-flex w-fit items-center justify-center gap-2 rounded-2xl bg-red-500 px-5 py-4 text-xl font-bold text-white hover:bg-red-400"
           href="tel:911"
         >
           <Phone size={18} />
@@ -1145,24 +1145,26 @@ function HelpView() {
         </p>
       </section>
 
-      <div className="inline-flex rounded-xl border border-zinc-800 bg-[#202020] p-1">
-        {helpTabs.map((tab) => {
-          const Icon = tab.icon;
-          const active = activeHelpTab === tab.name;
-          return (
-            <button
-              className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
-                active ? 'bg-zinc-700 text-zinc-50' : 'text-zinc-400 hover:bg-zinc-800'
-              }`}
-              key={tab.name}
-              onClick={() => setActiveHelpTab(tab.name)}
-              type="button"
-            >
-              <Icon size={17} />
-              {tab.name}
-            </button>
-          );
-        })}
+      <div className="flex justify-center">
+        <div className="inline-flex rounded-xl border border-zinc-800 bg-[#202020] p-1">
+          {helpTabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeHelpTab === tab.name;
+            return (
+              <button
+                className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
+                  active ? 'bg-zinc-700 text-zinc-50' : 'text-zinc-400 hover:bg-zinc-800'
+                }`}
+                key={tab.name}
+                onClick={() => setActiveHelpTab(tab.name)}
+                type="button"
+              >
+                <Icon size={17} />
+                {tab.name}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {activeHelpTab === 'Management' ? (
