@@ -627,7 +627,7 @@ function HomeView({ profile, logs, setActiveTab }) {
             type="button"
           >
             <Plus size={36} />
-            + LOG NEW ATTACK
+            LOG NEW ATTACK
           </button>
 
         <div className="rounded-2xl border border-emerald-500 bg-emerald-950/30 p-5">
