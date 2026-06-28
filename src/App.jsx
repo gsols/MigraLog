@@ -7,6 +7,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Download,
+  Heart,
   Home,
   Loader2,
   LogOut,
@@ -14,6 +15,7 @@ import {
   Phone,
   Plus,
   Printer,
+  ShieldCheck,
   ShieldAlert,
   Stethoscope,
 } from 'lucide-react';
@@ -96,6 +98,54 @@ const emergencyFlags = [
   'Headache after head injury or during pregnancy',
 ];
 
+const managementTips = [
+  {
+    title: 'Rest in a Dark, Quiet Room',
+    body: 'During a migraine attack, move to a dark, quiet room. Light and sound sensitivity are common triggers that worsen pain. Lie down with a cool cloth over your forehead and try to sleep if possible.',
+    tag: 'Comfort',
+  },
+  {
+    title: 'Track Your Patterns',
+    body: 'Use this diary consistently. Recognizing patterns in your triggers and symptoms is the most powerful tool for prevention. Note what you ate, how you slept, and your stress level before each attack.',
+    tag: 'Prevention',
+  },
+  {
+    title: 'Cold Compress Relief',
+    body: 'Apply a cold compress or ice pack wrapped in a towel to your forehead or the back of your neck for 15-20 minutes. This can constrict blood vessels and reduce migraine intensity.',
+    tag: 'Relief',
+  },
+  {
+    title: 'Stay Hydrated',
+    body: 'Dehydration is a common migraine trigger. Aim for steady water intake and add electrolytes when sweating, exercising, or recovering from vomiting.',
+    tag: 'Prevention',
+  },
+  {
+    title: 'Caffeine Awareness',
+    body: 'Caffeine can help some attacks, but regular use can lead to rebound headaches. Track your caffeine intake and notice whether it appears near symptom onset.',
+    tag: 'Trigger',
+  },
+  {
+    title: 'Sleep Hygiene',
+    body: 'Irregular sleep is a major trigger. Go to bed and wake up around the same time daily. Avoid screens for at least 30 minutes before bed when possible.',
+    tag: 'Prevention',
+  },
+];
+
+const triageTips = [
+  {
+    title: 'Emergency Warning Signs',
+    body: 'Seek immediate medical care for sudden severe headache unlike any before, headache with fever and stiff neck, headache after head injury, weakness on one side of the body, confusion, trouble speaking, or vision loss.',
+  },
+  {
+    title: 'When to Call Your Doctor',
+    body: 'Contact your healthcare provider if migraines occur more than twice a week, over-the-counter medications stop working, you need pain relievers more than 2-3 times per week, attacks interfere with daily life, or symptoms change.',
+  },
+  {
+    title: 'Medication Safety',
+    body: 'Follow prescribed doses and avoid mixing medicines unless your clinician approves it. Record side effects, relief response, and frequency of use so your care team can assess safety.',
+  },
+];
+
 const initialLogForm = () => {
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -156,6 +206,101 @@ function getAveragePain(logs) {
   if (!logs.length) return '0.0';
   const total = logs.reduce((sum, log) => sum + Number(log.pain_level || 0), 0);
   return (total / logs.length).toFixed(1);
+}
+
+function getDateKey(value) {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getHeatmapCells(logs, year = new Date().getFullYear()) {
+  const counts = new Map();
+  logs.forEach((log) => {
+    const loggedAt = new Date(log.logged_at);
+    if (loggedAt.getFullYear() === year) {
+      const key = getDateKey(log.logged_at);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+  });
+
+  const cells = [];
+  const firstDay = new Date(year, 0, 1);
+  const lastDay = new Date(year, 11, 31);
+
+  for (let index = 0; index < firstDay.getDay(); index += 1) {
+    cells.push({ key: `blank-${index}`, blank: true });
+  }
+
+  for (let date = new Date(firstDay); date <= lastDay; date.setDate(date.getDate() + 1)) {
+    const key = getDateKey(date);
+    cells.push({
+      key,
+      count: counts.get(key) || 0,
+      label: new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(date),
+    });
+  }
+
+  return cells;
+}
+
+function HeatmapCell({ cell }) {
+  const levels = ['bg-zinc-700/50', 'bg-emerald-950', 'bg-emerald-700', 'bg-emerald-500', 'bg-emerald-400'];
+  const level = Math.min(cell.count || 0, levels.length - 1);
+
+  if (cell.blank) {
+    return <span className="h-3 w-3 rounded-sm opacity-0" />;
+  }
+
+  return (
+    <span
+      aria-label={`${cell.label}: ${cell.count} attack${cell.count === 1 ? '' : 's'}`}
+      className={`h-3 w-3 rounded-sm ${levels[level]}`}
+      title={`${cell.label}: ${cell.count} attack${cell.count === 1 ? '' : 's'}`}
+    />
+  );
+}
+
+function AttackHeatmap({ logs }) {
+  const year = new Date().getFullYear();
+  const cells = getHeatmapCells(logs, year);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  return (
+    <section className="rounded-2xl border border-zinc-800 bg-[#242424] p-5">
+      <h2 className="flex items-center gap-3 text-2xl font-bold">
+        <Activity className="text-zinc-400" />
+        Attack Heatmap (Year)
+      </h2>
+      <p className="mt-3 text-lg text-zinc-400">Each cell is one day. Darker green means more attacks that day.</p>
+      <div className="mt-5 overflow-x-auto pb-2 scrollbar-calm">
+        <div className="min-w-[720px]">
+          <div className="mb-2 grid grid-cols-12 text-xs font-medium text-zinc-500">
+            {months.map((month) => (
+              <span key={month}>{month}</span>
+            ))}
+          </div>
+          <div className="grid grid-flow-col grid-rows-7 gap-1">
+            {cells.map((cell) => (
+              <HeatmapCell cell={cell} key={cell.key} />
+            ))}
+          </div>
+          <div className="mt-4 flex items-center justify-end gap-2 text-xs text-zinc-500">
+            <span>Fewer</span>
+            {[0, 1, 2, 3, 4].map((level) => (
+              <span
+                className={`h-4 w-4 rounded-sm ${['bg-zinc-700/50', 'bg-emerald-950', 'bg-emerald-700', 'bg-emerald-500', 'bg-emerald-400'][level]}`}
+                key={level}
+              />
+            ))}
+            <span>More</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function AuthGuard({ onAuth }) {
@@ -524,8 +669,8 @@ function LogView({ session, onSaved, setActiveTab }) {
     }
 
     setForm(initialLogForm());
-    setMessage('Attack entry saved.');
-    onSaved();
+    await onSaved();
+    setActiveTab('Home');
   }
 
   return (
@@ -853,11 +998,19 @@ function TrendsView({ logs, profile, setActiveTab }) {
           </div>
         </div>
       </section>
+
+      <AttackHeatmap logs={logs} />
     </div>
   );
 }
 
 function HelpView() {
+  const [activeHelpTab, setActiveHelpTab] = useState('Management');
+  const helpTabs = [
+    { name: 'Management', icon: Heart },
+    { name: 'Triage Tips', icon: ShieldCheck },
+  ];
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-red-500/50 bg-red-950/50 p-5">
@@ -893,6 +1046,49 @@ function HelpView() {
           clinician&apos;s treatment plan.
         </p>
       </section>
+
+      <div className="inline-flex rounded-xl border border-zinc-800 bg-[#202020] p-1">
+        {helpTabs.map((tab) => {
+          const Icon = tab.icon;
+          const active = activeHelpTab === tab.name;
+          return (
+            <button
+              className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
+                active ? 'bg-zinc-700 text-zinc-50' : 'text-zinc-400 hover:bg-zinc-800'
+              }`}
+              key={tab.name}
+              onClick={() => setActiveHelpTab(tab.name)}
+              type="button"
+            >
+              <Icon size={17} />
+              {tab.name}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeHelpTab === 'Management' ? (
+        <section className="space-y-4">
+          {managementTips.map((tip) => (
+            <article className="rounded-2xl border border-zinc-800 bg-[#242424] p-5" key={tip.title}>
+              <h2 className="text-xl font-bold">{tip.title}</h2>
+              <p className="mt-2 text-base leading-7 text-zinc-300">{tip.body}</p>
+              <span className="mt-3 inline-flex rounded-lg bg-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-300">
+                {tip.tag}
+              </span>
+            </article>
+          ))}
+        </section>
+      ) : (
+        <section className="space-y-4">
+          {triageTips.map((tip) => (
+            <article className="rounded-2xl border border-zinc-800 bg-[#242424] p-5" key={tip.title}>
+              <h2 className="text-xl font-bold">{tip.title}</h2>
+              <p className="mt-3 text-lg leading-8 text-zinc-300">{tip.body}</p>
+            </article>
+          ))}
+        </section>
+      )}
     </div>
   );
 }
@@ -905,7 +1101,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   const loadAppData = useCallback(
-    async (currentSession = session) => {
+    async (currentSession) => {
       if (!currentSession?.user) return;
 
       const [profileResult, logsResult] = await Promise.all([
@@ -916,7 +1112,7 @@ export default function App() {
       if (!profileResult.error) setProfile(profileResult.data);
       if (!logsResult.error) setLogs(logsResult.data || []);
     },
-    [session],
+    [],
   );
 
   useEffect(() => {
@@ -948,7 +1144,7 @@ export default function App() {
   }, [loadAppData]);
 
   const activeView = useMemo(() => {
-    if (activeTab === 'Log') return <LogView onSaved={() => loadAppData()} session={session} setActiveTab={setActiveTab} />;
+    if (activeTab === 'Log') return <LogView onSaved={() => loadAppData(session)} session={session} setActiveTab={setActiveTab} />;
     if (activeTab === 'Trends') return <TrendsView logs={logs} profile={profile} setActiveTab={setActiveTab} />;
     if (activeTab === 'Help') return <HelpView />;
     return <HomeView logs={logs} profile={profile} setActiveTab={setActiveTab} />;
