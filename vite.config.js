@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => {
   const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
   return {
+    base: './',
     plugins: [react()],
     define: {
       __SUPABASE_URL__: JSON.stringify(supabaseUrl),
