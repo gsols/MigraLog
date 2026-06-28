@@ -12,6 +12,7 @@ import {
   Loader2,
   LogOut,
   NotebookPen,
+  Pill,
   Phone,
   Plus,
   Printer,
@@ -206,6 +207,83 @@ function getAveragePain(logs) {
   if (!logs.length) return '0.0';
   const total = logs.reduce((sum, log) => sum + Number(log.pain_level || 0), 0);
   return (total / logs.length).toFixed(1);
+}
+
+function getMedicationResponseData(logs) {
+  const medications = new Map();
+
+  logs.forEach((log) => {
+    const medication = log.medication_taken?.trim();
+    if (!medication) return;
+
+    const current = medications.get(medication) || { name: medication, taken: 0, relieved: 0 };
+    current.taken += 1;
+    if (log.overall_relief_achieved) {
+      current.relieved += 1;
+    }
+    medications.set(medication, current);
+  });
+
+  return [...medications.values()]
+    .sort((a, b) => b.taken - a.taken || b.relieved - a.relieved || a.name.localeCompare(b.name))
+    .slice(0, 5);
+}
+
+function MedicationResponseChart({ logs }) {
+  const medicationData = getMedicationResponseData(logs);
+  const maxTaken = Math.max(...medicationData.map((item) => item.taken), 2);
+  const ticks = Array.from({ length: maxTaken + 1 }, (_, index) => index);
+
+  return (
+    <section className="rounded-2xl border border-zinc-800 bg-[#242424] p-5">
+      <h2 className="mb-7 flex items-center gap-3 text-2xl font-bold">
+        <Pill className="text-zinc-400" />
+        Medication Response
+      </h2>
+
+      {medicationData.length ? (
+        <div className="space-y-7">
+          {medicationData.map((item) => {
+            const takenWidth = `${Math.max((item.taken / maxTaken) * 100, 4)}%`;
+            const relievedWidth = item.relieved ? `${Math.max((item.relieved / maxTaken) * 100, 4)}%` : '0%';
+            const reliefRate = Math.round((item.relieved / item.taken) * 100);
+
+            return (
+              <div className="grid grid-cols-[8rem_1fr] items-center gap-3 sm:grid-cols-[10rem_1fr]" key={item.name}>
+                <div className="min-w-0 text-right text-base font-medium text-zinc-300">
+                  <p className="truncate" title={item.name}>{item.name}</p>
+                </div>
+                <div aria-label={`${item.name}: ${item.relieved} relieved out of ${item.taken} taken`} className="space-y-1.5">
+                  <div className="h-10 overflow-hidden rounded bg-zinc-700/70">
+                    <div className="h-full rounded bg-zinc-600" style={{ width: takenWidth }} />
+                  </div>
+                  <div className="h-10 overflow-hidden rounded bg-transparent">
+                    <div className="h-full rounded bg-[#29c765]" style={{ width: relievedWidth }} />
+                  </div>
+                  <p className="sr-only">{reliefRate}% response rate</p>
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="ml-[9.3rem] grid text-base text-zinc-500 sm:ml-[11.3rem]" style={{ gridTemplateColumns: `repeat(${ticks.length}, minmax(0, 1fr))` }}>
+            {ticks.map((tick) => (
+              <span className={tick === 0 ? 'text-left' : 'text-right'} key={tick}>{tick}</span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <EmptyState title="Medication response appears after saved logs include treatment feedback." />
+      )}
+    </section>
+  );
+}
+
+function getLogsWithinDays(logs, days) {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  return logs.filter((log) => new Date(log.logged_at) >= startDate);
 }
 
 function getDateKey(value) {
@@ -853,12 +931,14 @@ function LogView({ session, onSaved, setActiveTab }) {
 }
 
 function TrendsView({ logs, profile, setActiveTab }) {
-  const triggerCounts = getTriggerCounts(logs);
+  const [reportDays, setReportDays] = useState(7);
+  const reportLogs = getLogsWithinDays(logs, reportDays);
+  const triggerCounts = getTriggerCounts(reportLogs);
   const topTrigger = triggerCounts[0]?.[0] || 'None yet';
   const triggerChartData = triggerCounts.slice(0, 6).map(([name, value]) => ({ name, value }));
 
   function exportReport() {
-    const reportRows = logs
+    const reportRows = reportLogs
       .map(
         (log) => `
           <tr>
@@ -889,10 +969,11 @@ function TrendsView({ logs, profile, setActiveTab }) {
         <body>
           <h1>MigraLog Nursing Insight Report</h1>
           <p>Patient: ${profile?.full_name || 'MigraLog User'}</p>
+          <p>Report Window: Last ${reportDays} days</p>
           <p>Generated: ${new Date().toLocaleString()}</p>
           <div class="metrics">
-            <div class="metric"><strong>Total Attacks</strong><br />${logs.length}</div>
-            <div class="metric"><strong>Average Pain</strong><br />${getAveragePain(logs)}/10</div>
+            <div class="metric"><strong>Total Attacks</strong><br />${reportLogs.length}</div>
+            <div class="metric"><strong>Average Pain</strong><br />${getAveragePain(reportLogs)}/10</div>
             <div class="metric"><strong>Top Trigger</strong><br />${topTrigger}</div>
           </div>
           <table>
@@ -911,38 +992,53 @@ function TrendsView({ logs, profile, setActiveTab }) {
     reportWindow.print();
   }
 
-  const treated = logs.filter((log) => log.medication_taken).length;
-  const relieved = logs.filter((log) => log.overall_relief_achieved).length;
-  const successRate = logs.length ? Math.round((relieved / logs.length) * 100) : 0;
-  const avgMinutes = logs.length
-    ? Math.round(logs.reduce((sum, log) => sum + (log.duration_hours || 0) * 60 + (log.duration_minutes || 0), 0) / logs.length)
+  const treated = reportLogs.filter((log) => log.medication_taken).length;
+  const relieved = reportLogs.filter((log) => log.overall_relief_achieved).length;
+  const successRate = reportLogs.length ? Math.round((relieved / reportLogs.length) * 100) : 0;
+  const avgMinutes = reportLogs.length
+    ? Math.round(reportLogs.reduce((sum, log) => sum + (log.duration_hours || 0) * 60 + (log.duration_minutes || 0), 0) / reportLogs.length)
     : 0;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <button className="rounded-full p-1 text-zinc-400" onClick={() => setActiveTab('Home')} type="button">
+      <div className="flex items-center gap-3">
+        <button className="shrink-0 rounded-full p-1 text-zinc-400" onClick={() => setActiveTab('Home')} type="button">
           <ArrowLeft size={32} />
         </button>
-        <h1 className="min-w-0 flex-1 text-[34px] font-bold leading-tight tracking-normal">Nursing Insight Report</h1>
-        <div className="hidden rounded-xl bg-[#2a2a2a] p-1 sm:flex">
-          <button className="rounded-lg bg-[#06b843] px-4 py-2 text-lg font-bold text-white" type="button">7 days</button>
-          <button className="rounded-lg px-4 py-2 text-lg font-bold text-zinc-400" type="button">30 days</button>
+        <h1 className="min-w-0 flex-1 text-2xl font-bold leading-tight tracking-normal sm:text-[34px]">Nursing Insight Report</h1>
+        <div className="flex shrink-0 rounded-xl bg-[#2a2a2a] p-1">
+          {[7, 30].map((days) => {
+            const selected = reportDays === days;
+
+            return (
+              <button
+                className={`rounded-lg px-3 py-2 text-base font-bold leading-tight sm:px-4 sm:text-lg ${
+                  selected ? 'bg-[#06b843] text-white shadow-[inset_0_0_0_2px_rgba(255,255,255,0.08)]' : 'text-zinc-400'
+                }`}
+                key={days}
+                onClick={() => setReportDays(days)}
+                type="button"
+              >
+                {days}
+                <span className="block">days</span>
+              </button>
+            );
+          })}
         </div>
         <button
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#06b843] px-4 py-3 text-lg font-bold text-white hover:bg-emerald-500"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#06b843] px-4 py-3 text-base font-bold leading-tight text-white hover:bg-emerald-500 sm:text-lg"
           onClick={exportReport}
           type="button"
         >
           <Printer size={18} />
-          Export PDF
+          <span>Export<span className="block">PDF</span></span>
         </button>
       </div>
-      <p className="text-xl text-zinc-400">7-day summary for clinician review. Use Export PDF to save or print.</p>
+      <p className="text-xl text-zinc-400">Last {reportDays} days summary for clinician review. Use Export PDF to save or print.</p>
 
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <MetricCard icon={Activity} label="Attacks" value={logs.length} />
-        <MetricCard icon={Stethoscope} label="Avg Pain" value={getAveragePain(logs)} />
+        <MetricCard icon={Activity} label="Attacks" value={reportLogs.length} />
+        <MetricCard icon={Stethoscope} label="Avg Pain" value={getAveragePain(reportLogs)} />
         <MetricCard icon={Download} label="Treated" value={treated} />
         <MetricCard icon={BarChart3} label="Avg Duration" value={avgMinutes ? `${avgMinutes}m` : '—'} />
       </section>
@@ -951,17 +1047,19 @@ function TrendsView({ logs, profile, setActiveTab }) {
         <h2 className="mb-5 flex items-center gap-3 text-2xl font-bold"><NotebookPen className="text-zinc-400" /> Relief Outcome</h2>
         <div className="grid grid-cols-3 gap-4 text-center text-2xl font-bold">
           <p className="text-emerald-400"><CheckCircle2 className="mx-auto mb-2" />{relieved} relieved</p>
-          <p className="text-red-400"><AlertTriangle className="mx-auto mb-2" />{logs.length - relieved} not relieved</p>
+          <p className="text-red-400"><AlertTriangle className="mx-auto mb-2" />{reportLogs.length - relieved} not relieved</p>
           <p>{successRate}%<span className="block text-xl font-medium text-zinc-300">success</span></p>
         </div>
       </section>
+
+      <MedicationResponseChart logs={reportLogs} />
 
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-zinc-800 bg-[#242424] p-5">
           <h2 className="mb-4 flex items-center gap-3 text-2xl font-bold"><BarChart3 className="text-zinc-400" /> Pain Trend</h2>
           <div className="h-72">
             <ResponsiveContainer height="100%" width="100%">
-              <LineChart data={getChartLogs(logs)} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+              <LineChart data={getChartLogs(reportLogs)} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
                 <CartesianGrid stroke="#27272a" strokeDasharray="3 3" />
                 <XAxis dataKey="date" stroke="#a1a1aa" tick={{ fill: '#a1a1aa', fontSize: 12 }} />
                 <YAxis domain={[1, 10]} stroke="#a1a1aa" tick={{ fill: '#a1a1aa', fontSize: 12 }} />
@@ -999,7 +1097,7 @@ function TrendsView({ logs, profile, setActiveTab }) {
         </div>
       </section>
 
-      <AttackHeatmap logs={logs} />
+      <AttackHeatmap logs={reportLogs} />
     </div>
   );
 }
